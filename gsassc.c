@@ -1,6 +1,3 @@
-#include <stdio.h>
-#include <string.h>
-
 #include <stdlib.h>
 #include <glib.h>
 #include <gio/gio.h>
@@ -175,31 +172,6 @@ static void on_file_changed(GFileMonitor *monitor, GFile *file, GFile *other_fil
 	}
 
 	compile_file(options, file_path, NULL);
-
-	/*
-	if IS_PARTIAL(file)
-		NON_PARTALS = search for all non-partial files in the watched dir (get dir of file)
-			if (count NON_PARTIALS == 1)
-				compile NON_PARTIALS[0]
-			else
-				compile ???
-			fi
-	else
-		compile the file
-	fi
-	*/
-
-	return;
-
-	switch (event_type)  {
-		case G_FILE_MONITOR_EVENT_CHANGED:
-		case G_FILE_MONITOR_EVENT_CHANGES_DONE_HINT:
-		case G_FILE_MONITOR_EVENT_CREATED:
-			compile_file(options, file_path, NULL);
-			break;
-		default:
-			break;
-	}
 }
 
 gint main (gint argc, gchar **argv) {

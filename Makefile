@@ -23,6 +23,9 @@ clean:
 	rm -f $(OBJECTS) $(TARGET)
 	$(MAKE) -C $(SASS_LIBSASS_PATH) clean
 
+install:
+	cp $(TARGET) /usr/local/bin/
+
 .PHONY: clean libsass
 .DELETE_ON_ERROR:
 

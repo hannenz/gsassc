@@ -26,7 +26,7 @@ static GOptionEntry entries [] = {
 gint output(gint error_status, gchar* error_message, gchar* output_string, gchar* outfile) {
 	if (error_status) {
 		if (error_message) {
-			g_print("%s\n", error_message);
+			g_print("%s", error_message);
 		}
 		else {
 			g_error("An error occured; no error message available");

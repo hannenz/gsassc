@@ -14,14 +14,15 @@ static gboolean verbose = FALSE;
 
 static GOptionEntry entries [] = {
 	{	"output", 'o', 0, G_OPTION_ARG_FILENAME, &outfile, "Write to specified file", NULL},
-	{	"style", 't', 0, G_OPTION_ARG_STRING, &style, "Output style. Can be nested or compressed" , NULL},
+	{	"style", 't', 0, G_OPTION_ARG_STRING, &style, "Output style. Can be nested, expanded, compact or compressed (Note: nested, compact and expanded are the same by now, waiting for libsass to implement them... ;))" , NULL},
 	{	"line-numbers", 'l', 0, G_OPTION_ARG_NONE, &line_numbers, "Emit comments showing original line numbers.", NULL},
 	{	"source-map", 'g', 0, G_OPTION_ARG_NONE, &source_map, "Emit source map.", NULL},
 	{	"import-path", 'I', 0, G_OPTION_ARG_STRING, &include_paths, "Set Sass import path (colon delimited list of paths).", NULL},
-	{	"watch", 'w', 0, G_OPTION_ARG_STRING, &watch, "Watch a directory for changes. Defaults to the current dir", NULL},
+	{	"watch", 'w', 0, G_OPTION_ARG_STRING, &watch, "Watch for changes. Give either infile:outfile or indir:outdir as argument", NULL},
 	{	"verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose, "Be verbose", NULL},
 	{ NULL }
 };
+
 
 gint output(gint error_status, gchar* error_message, gchar* output_string, gchar* outfile) {
 	if (error_status) {
@@ -32,10 +33,16 @@ gint output(gint error_status, gchar* error_message, gchar* output_string, gchar
 			g_print("An error occured; no error message available\n");
 		}
 		return 1;
-
 	}
 	else if (output_string) {
+		if (verbose){
+			g_print("[OK]\n");
+		}
 		if (outfile) {
+
+			if (verbose){
+				g_print("Writing to file: %s\n", outfile);
+			}
 
 			GError *error = NULL;
 			if (!g_file_set_contents(outfile, output_string, -1, &error)) {
@@ -133,6 +140,25 @@ gint compile_stdin(struct sass_options options, gchar* outfile) {
 }
 
 
+gchar *change_suffix(const gchar *filename){
+
+	gchar *dot, *tmp, *ret;
+
+	tmp = g_strdup(filename);
+
+	dot = g_strrstr(tmp, ".");
+
+	if (dot != NULL) {
+		*dot = '\0';
+		ret = g_strdup_printf("%s.css", tmp);
+		g_free(tmp);
+		return ret;
+	}
+	else {
+		return NULL;
+	}
+}
+
 static void on_file_changed(GFileMonitor *monitor, GFile *file, GFile *other_file, GFileMonitorEvent event_type, gpointer udata) {
 
 	struct sass_options options;
@@ -159,7 +185,7 @@ static void on_directory_changed(GFileMonitor *monitor, GFile *file, GFile *othe
 	GError *error;
 	GDir *dir;
 	GList *non_partials;
-	gint n;
+//	gint n;
 
 	options = *(struct sass_options*)udata;
 
@@ -200,35 +226,52 @@ static void on_directory_changed(GFileMonitor *monitor, GFile *file, GFile *othe
 				}
 				g_dir_close(dir);
 
-				n = g_list_length(non_partials);
+//				n = g_list_length(non_partials);
 
-				switch (n){
-					case 0:
-						g_error("No non-partial scss file in this directory: %s", watchdir);
-						break;
-					case 1:
-					default:
-						file_path = g_build_filename(watchdir, g_list_nth_data(non_partials, 0), NULL);
-						break;
+				GList *ptr;
+				for (ptr = non_partials; ptr != NULL; ptr = ptr->next){
+					gchar *name, *basename, *outfile, *outpath, *inpath;
+					
+					name = ptr->data;
+					inpath = g_build_filename(watchdir, name, NULL);
+
+					basename = g_path_get_basename(name);
+					outfile = change_suffix(basename);
+					if (outfile){
+
+						outpath = g_build_filename(outdir, outfile, NULL);
+						compile_file(options, inpath, outpath);
+
+						g_free(outpath);
+					}
+
+					g_free(outfile);
+					g_free(basename);
+					g_free(inpath);
+					g_free(name);
 				}
 			}
 			else {
+
+				gchar *basename, *outfile, *outpath;
+				basename = g_path_get_basename(file_path);
+				outfile = change_suffix(basename);
+				if (outfile){
+					outpath = g_build_filename(outdir, outfile, NULL);
+					compile_file(options, file_path, outpath);
+					g_free(outpath);
+				}
+				g_free(outfile);
+				g_free(basename);
+
 			}
 
 			// build out file name from infile name switch extension to .css and 
-
-			gchar *tmp, *outfile_name, *dot;
-			tmp = g_path_get_basename(file_path);
-			dot = g_strrstr(tmp, ".");
-			*dot = '\0';
-			outfile_name = g_strdup_printf("%s.css", tmp);
-			outfile_name = g_build_filename(outdir, outfile_name, NULL);
-
-
-			compile_file(options, file_path, outfile_name);
 		}
 	}
 }
+
+
 
 gint main (gint argc, gchar **argv) {
 
@@ -239,10 +282,10 @@ gint main (gint argc, gchar **argv) {
 
 	g_type_init();
 
-
 	/* Parse command line options */
 
-	context = g_option_context_new("- compile sass files");
+	context = g_option_context_new("[source file]");
+	g_option_context_set_summary(context, "Compile SASS (SCSS) files to CSS files.");
 	g_option_context_add_main_entries(context, entries, NULL);
 
 	group = g_option_group_new("My Options", "These are my options", "This is the help description for my options", NULL, NULL);
@@ -265,6 +308,12 @@ gint main (gint argc, gchar **argv) {
 	else if (!g_strcmp0(style, "nested")) {
 		options.output_style = SASS_STYLE_NESTED;
 	}
+	else if (!g_strcmp0(style, "compact")) {
+		options.output_style = SASS_STYLE_COMPACT;
+	}
+	else if (!g_strcmp0(style, "expanded")) {
+		options.output_style = SASS_STYLE_EXPANDED;
+	}
 	else {
 		g_print("Illegal output style: %s\n", style);
 		exit(1);
@@ -278,12 +327,10 @@ gint main (gint argc, gchar **argv) {
 		options.source_comments = SASS_SOURCE_COMMENTS_MAP;
 	}
 
-
 	if (watch != NULL) {
 
 		gchar **watchfiles;
 		watchfiles = g_strsplit(watch, ":", 2);
-
 
 		if (watchfiles[0] == NULL || watchfiles[1] == NULL){
 			g_print("Invalid argument for watch. User --watch infile:outfile or --watch indir:outdir\n");
@@ -312,7 +359,6 @@ gint main (gint argc, gchar **argv) {
 			outdir = g_strdup(watchfiles[1]);
 
 			error = NULL;
-
 			if ((monitor = g_file_monitor_directory(g_file_new_for_path(watchfiles[0]), 0, NULL, &error)) == NULL) {
 				g_error("Failed to setup a file monitor: %s\n", error->message);
 				g_error_free(error);

@@ -3,15 +3,14 @@
 #include <gio/gio.h>
 #include <sass_interface.h>
 
-#define BUFSIZE 512
-
 static gchar *outfile = NULL;
+static gchar *outdir = NULL;
 static gchar *style = "nested";
 static gboolean line_numbers = FALSE;
 static gboolean source_map = FALSE;
 static gchar *include_paths = NULL;
 static gchar *watch = NULL;
-
+static gboolean verbose = FALSE;
 
 static GOptionEntry entries [] = {
 	{	"output", 'o', 0, G_OPTION_ARG_FILENAME, &outfile, "Write to specified file", NULL},
@@ -20,6 +19,7 @@ static GOptionEntry entries [] = {
 	{	"source-map", 'g', 0, G_OPTION_ARG_NONE, &source_map, "Emit source map.", NULL},
 	{	"import-path", 'I', 0, G_OPTION_ARG_STRING, &include_paths, "Set Sass import path (colon delimited list of paths).", NULL},
 	{	"watch", 'w', 0, G_OPTION_ARG_STRING, &watch, "Watch a directory for changes. Defaults to the current dir", NULL},
+	{	"verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose, "Be verbose", NULL},
 	{ NULL }
 };
 
@@ -29,7 +29,7 @@ gint output(gint error_status, gchar* error_message, gchar* output_string, gchar
 			g_print("%s", error_message);
 		}
 		else {
-			g_error("An error occured; no error message available");
+			g_print("An error occured; no error message available\n");
 		}
 		return 1;
 
@@ -60,6 +60,10 @@ gint output(gint error_status, gchar* error_message, gchar* output_string, gchar
 gint compile_file(struct sass_options options, gchar* input_path, gchar* outfile) {
 	gint ret;
 
+	if (verbose){
+		g_print("Compiling file: %s\n", input_path);
+	}
+
 	struct sass_file_context *context = sass_new_file_context();
 	context->options = options;
 	context->input_path = input_path;
@@ -69,6 +73,10 @@ gint compile_file(struct sass_options options, gchar* input_path, gchar* outfile
 	ret = output(context->error_status, context->error_message, context->output_string, outfile);
 
 	sass_free_file_context(context);
+
+	if (verbose) {
+		g_print("Done.\n");
+	}
 	return ret;
 }
 
@@ -124,9 +132,28 @@ gint compile_stdin(struct sass_options options, gchar* outfile) {
 	return ret;
 }
 
+
 static void on_file_changed(GFileMonitor *monitor, GFile *file, GFile *other_file, GFileMonitorEvent event_type, gpointer udata) {
 
-	gchar *file_path, *watchdir;
+	struct sass_options options;
+	gchar *file_path;
+	
+	options = *(struct sass_options*)udata;
+
+	if (event_type == G_FILE_MONITOR_EVENT_CHANGES_DONE_HINT) {
+		file_path = g_file_get_path(file);
+
+		if (verbose){
+			g_print("Change detected in file: %s\n", file_path);
+		}
+
+		compile_file(options, file_path, outfile);
+	}
+}
+
+static void on_directory_changed(GFileMonitor *monitor, GFile *file, GFile *other_file, GFileMonitorEvent event_type, gpointer udata) {
+
+	gchar *file_path, *filename, *watchdir;
 	const gchar *name;
 	struct sass_options options;
 	GError *error;
@@ -134,44 +161,73 @@ static void on_file_changed(GFileMonitor *monitor, GFile *file, GFile *other_fil
 	GList *non_partials;
 	gint n;
 
-	file_path = g_file_get_path(file);
 	options = *(struct sass_options*)udata;
 
-	watchdir = g_file_get_path(g_file_get_parent(file));
+	if (event_type == G_FILE_MONITOR_EVENT_CHANGES_DONE_HINT) {
 
-	if (g_str_has_prefix(file_path, "_")) {
-
-		error = NULL;
-		dir = g_dir_open(watchdir, 0, &error);
-		if (dir == NULL){
-			g_error("Failed to read directory: %s\n", error->message);
-			g_error_free(error);
-			exit(1);
+		file_path = g_file_get_path(file);
+		if (!g_file_test(file_path, G_FILE_TEST_EXISTS)){
+			return;
 		}
-		
-		non_partials = NULL;
-		while ((name = g_dir_read_name(dir)) != NULL) {
 
-			if (g_str_has_suffix(name, ".scss") && !g_str_has_prefix(name, "_")){
-				non_partials = g_list_append(non_partials, (gchar*)name);
+		filename = g_path_get_basename(file_path);
+
+
+		if (g_str_has_suffix(file_path, ".scss")) {
+
+			watchdir = g_file_get_path(g_file_get_parent(file));
+
+			if (verbose){
+				g_print("Change detected in file %s in dir: %s\n", file_path, watchdir);
 			}
-		}
-		g_dir_close(dir);
 
-		n = g_list_length(non_partials);
+			if (g_str_has_prefix(filename, "_")) {
 
-		switch (n){
-			case 0:
-				g_error("No non-partial scss file in this directory: %s", watchdir);
-				break;
-			case 1:
-			default:
-				file_path = (gchar*)g_list_nth_data(non_partials, 1);
-				break;
+				error = NULL;
+				dir = g_dir_open(watchdir, 0, &error);
+				if (dir == NULL){
+					g_error("Failed to read directory: %s\n", error->message);
+					g_error_free(error);
+					exit(1);
+				}
+				
+				non_partials = NULL;
+				while ((name = g_dir_read_name(dir)) != NULL) {
+
+					if (g_str_has_suffix(name, ".scss") && !g_str_has_prefix(name, "_")){
+						non_partials = g_list_append(non_partials, g_strdup(name));
+					}
+				}
+				g_dir_close(dir);
+
+				n = g_list_length(non_partials);
+
+				switch (n){
+					case 0:
+						g_error("No non-partial scss file in this directory: %s", watchdir);
+						break;
+					case 1:
+					default:
+						file_path = g_build_filename(watchdir, g_list_nth_data(non_partials, 0), NULL);
+						break;
+				}
+			}
+			else {
+			}
+
+			// build out file name from infile name switch extension to .css and 
+
+			gchar *tmp, *outfile_name, *dot;
+			tmp = g_path_get_basename(file_path);
+			dot = g_strrstr(tmp, ".");
+			*dot = '\0';
+			outfile_name = g_strdup_printf("%s.css", tmp);
+			outfile_name = g_build_filename(outdir, outfile_name, NULL);
+
+
+			compile_file(options, file_path, outfile_name);
 		}
 	}
-
-	compile_file(options, file_path, NULL);
 }
 
 gint main (gint argc, gchar **argv) {
@@ -225,14 +281,56 @@ gint main (gint argc, gchar **argv) {
 
 	if (watch != NULL) {
 
-		error = NULL;
-		if ((monitor = g_file_monitor(g_file_new_for_path(watch), 0, NULL, &error)) == NULL) {
-			g_error("Failed to setup a file monitor: %s\n", error->message);
-			g_error_free(error);
+		gchar **watchfiles;
+		watchfiles = g_strsplit(watch, ":", 2);
+
+
+		if (watchfiles[0] == NULL || watchfiles[1] == NULL){
+			g_print("Invalid argument for watch. User --watch infile:outfile or --watch indir:outdir\n");
 			exit(1);
 		}
 
-		g_signal_connect(monitor, "changed", G_CALLBACK(on_file_changed), &options);
+		if (g_file_test(watchfiles[0], G_FILE_TEST_IS_REGULAR)) {
+
+			outfile = g_strdup(watchfiles[1]);
+
+			error = NULL;
+			if ((monitor = g_file_monitor_file(g_file_new_for_path(watchfiles[0]), 0, NULL, &error)) == NULL) {
+				g_error("Failed to setup a file monitor: %s\n", error->message);
+				g_error_free(error);
+				exit(1);
+			}
+
+			if (verbose){
+				g_print("%s is watching for changes in %s\n", argv[0], watchfiles[0]);
+			}
+
+			g_signal_connect(monitor, "changed", G_CALLBACK(on_file_changed), &options);
+		}
+		else if (g_file_test(watchfiles[0], G_FILE_TEST_IS_DIR) && g_file_test(watchfiles[1], G_FILE_TEST_IS_DIR)){
+
+			outdir = g_strdup(watchfiles[1]);
+
+			error = NULL;
+
+			if ((monitor = g_file_monitor_directory(g_file_new_for_path(watchfiles[0]), 0, NULL, &error)) == NULL) {
+				g_error("Failed to setup a file monitor: %s\n", error->message);
+				g_error_free(error);
+				exit(1);
+			}
+
+			if (verbose){
+				g_print("%s is watching for changes in %s\n", argv[0], watchfiles[0]);
+			}
+
+			g_signal_connect(monitor, "changed", G_CALLBACK(on_directory_changed), &options);
+		}
+		else {
+			g_print("Don't know what to watch. Use %s --watch infile:outfile or %s --watch indir:outdir. In the latter case make sure that both directories exist.\n", argv[0], argv[0]);
+			exit(1);
+		}
+
+		g_strfreev(watchfiles);
 
 		GMainLoop *loop;
 		loop = g_main_loop_new(NULL, FALSE);

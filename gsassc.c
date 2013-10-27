@@ -57,9 +57,9 @@ gint output(gint error_status, gchar* error_message, gchar* output_string, gchar
 		return 1;
 	}
 	else if (output_string) {
-		if (verbose){
-			g_print("[OK]\n");
-		}
+		// if (verbose){
+		// 	g_print("[OK]\n");
+		// }
 		if (outfile) {
 
 			if (verbose){
@@ -103,9 +103,9 @@ gint compile_file(struct sass_options options, gchar* input_path, gchar* outfile
 
 	sass_free_file_context(context);
 
-	if (verbose) {
-		g_print("Done.\n");
-	}
+	// if (verbose) {
+	// 	g_print("Done.\n");
+	// }
 	return ret;
 }
 
@@ -226,7 +226,7 @@ static void on_directory_changed(GFileMonitor *monitor, GFile *file, GFile *othe
 			watchdir = g_file_get_path(g_file_get_parent(file));
 
 			if (verbose){
-				g_print("Change detected in file %s in dir: %s\n", file_path, watchdir);
+				g_print("Change detected in file %s\n", file_path);
 			}
 
 			if (g_str_has_prefix(filename, "_")) {

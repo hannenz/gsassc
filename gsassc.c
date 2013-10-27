@@ -23,7 +23,6 @@ static GOptionEntry entries [] = {
 	{ NULL }
 };
 
-
 gint output(gint error_status, gchar* error_message, gchar* output_string, gchar* outfile) {
 	if (error_status) {
 		if (error_message) {
@@ -279,6 +278,7 @@ gint main (gint argc, gchar **argv) {
 	GOptionContext *context;
 	GOptionGroup *group;
 	GFileMonitor *monitor;
+	gint retval;
 
 	g_type_init();
 
@@ -384,13 +384,51 @@ gint main (gint argc, gchar **argv) {
 		return 0;
 	}
 
+	// concat all files and compile in one run
+	gchar *input, *contents;
+	gsize len;
+	switch (argc) {
+		case 0:
+			g_error("Something went terribly wrong...");
+			retval = -666;
+			break;
 
-	if (argc == 2) {
-		compile_file(options, argv[1], outfile);
-	}
-	else if (argc == 1) {
-		compile_stdin(options, outfile);
-	}
+		case 1:
+			retval = compile_stdin(options, outfile);
+			break;
 
-	return 0;
+		case 2:
+			retval = compile_file(options, argv[1], outfile);
+			break;
+
+		default:
+
+			input = NULL;
+			while (*++argv){
+				error = NULL;
+				if (!g_file_get_contents(*argv, &contents, &len, &error)){
+					g_print("Failed to read file: %s: %s\n", *argv, error->message);
+					g_error_free(error);
+					exit(-1);
+				}
+				if (input == NULL){
+					input = contents;
+				}
+				else {
+					input = g_strconcat(input, contents, NULL);
+					g_free(contents);
+				}
+			}
+
+			struct sass_context *ctx = sass_new_context();
+			ctx = sass_new_context();
+			ctx->options = options;
+			ctx->source_string = input;
+			sass_compile(ctx);
+			retval = output(ctx->error_status, ctx->error_message, ctx->output_string, outfile);
+
+			sass_free_context(ctx);
+			g_free(input);
+	}
+	return retval;
 }

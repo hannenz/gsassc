@@ -1,3 +1,26 @@
+/*
+gsassc
+
+Sass CSS Preprocesser
+
+This is a GLib based port of [libsass](git@github.com/hcatlin/libsass)
+
+Copyright 2013 Johannes Braun <me@hannenz.de>
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+#include <stdio.h>
 #include <stdlib.h>
 #include <glib.h>
 #include <gio/gio.h>
@@ -14,7 +37,7 @@ static gboolean verbose = FALSE;
 
 static GOptionEntry entries [] = {
 	{	"output", 'o', 0, G_OPTION_ARG_FILENAME, &outfile, "Write to specified file", NULL},
-	{	"style", 't', 0, G_OPTION_ARG_STRING, &style, "Output style. Can be nested, expanded, compact or compressed (Note: nested, compact and expanded are the same by now, waiting for libsass to implement them... ;))" , NULL},
+	{	"style", 't', 0, G_OPTION_ARG_STRING, &style, "Output style. Can be nested, expanded, compact or compressed (Note: nested, compact and expanded are the same by now)" , NULL},
 	{	"line-numbers", 'l', 0, G_OPTION_ARG_NONE, &line_numbers, "Emit comments showing original line numbers.", NULL},
 	{	"source-map", 'g', 0, G_OPTION_ARG_NONE, &source_map, "Emit source map.", NULL},
 	{	"import-path", 'I', 0, G_OPTION_ARG_STRING, &include_paths, "Set Sass import path (colon delimited list of paths).", NULL},
@@ -97,16 +120,16 @@ gint compile_stdin(struct sass_options options, gchar* outfile) {
 
 	struct sass_context *ctx;
 
-
 	file = g_string_new(NULL);
 	line = g_string_new(NULL);
-	ch = g_io_channel_unix_new(1);
+	int fd = 0;	// stdin
+	ch = g_io_channel_unix_new(fd);
 
 	do {
 		error = NULL;
 		status = g_io_channel_read_line_string(ch, line, NULL, &error);
 
-		if (status == G_IO_STATUS_NORMAL) {
+		if (status == G_IO_STATUS_NORMAL || G_IO_STATUS_EOF) {
 			file = g_string_append(file, line->str);
 		}
 		else if (status == G_IO_STATUS_ERROR) {
@@ -120,6 +143,9 @@ gint compile_stdin(struct sass_options options, gchar* outfile) {
 				g_error_free(error);
 			}
 			return 1;
+		}
+		else {
+			g_print ("booo\n");
 		}
 	}
 	while (status != G_IO_STATUS_EOF);
@@ -141,7 +167,7 @@ gint compile_stdin(struct sass_options options, gchar* outfile) {
 
 gchar *change_suffix(const gchar *filename){
 
-	gchar *dot, *tmp, *ret;
+	gchar *dot, *tmp, *ret = NULL;
 
 	tmp = g_strdup(filename);
 
@@ -150,12 +176,9 @@ gchar *change_suffix(const gchar *filename){
 	if (dot != NULL) {
 		*dot = '\0';
 		ret = g_strdup_printf("%s.css", tmp);
-		g_free(tmp);
-		return ret;
 	}
-	else {
-		return NULL;
-	}
+	g_free(tmp);
+	return ret;
 }
 
 static void on_file_changed(GFileMonitor *monitor, GFile *file, GFile *other_file, GFileMonitorEvent event_type, gpointer udata) {
@@ -285,7 +308,7 @@ gint main (gint argc, gchar **argv) {
 	/* Parse command line options */
 
 	context = g_option_context_new("[source file]");
-	g_option_context_set_summary(context, "Compile SASS (SCSS) files to CSS files.");
+	g_option_context_set_summary(context, "Compile Sass (scss) files to CSS.");
 	g_option_context_add_main_entries(context, entries, NULL);
 
 	group = g_option_group_new("My Options", "These are my options", "This is the help description for my options", NULL, NULL);

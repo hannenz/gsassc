@@ -1,5 +1,0 @@
-.world {
-	content:'World';
-	@include foo();
-}
-

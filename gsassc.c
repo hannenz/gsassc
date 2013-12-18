@@ -88,6 +88,7 @@ gint output(gint error_status, gchar* error_message, gchar* output_string, gchar
 
 gint compile_file(struct sass_options options, gchar* input_path, gchar* outfile) {
 	gint ret;
+	gchar *map_file_name = g_strdup_printf("%s.map", outfile);
 
 	if (verbose){
 		g_print("Compiling file: %s\n", input_path);
@@ -96,12 +97,21 @@ gint compile_file(struct sass_options options, gchar* input_path, gchar* outfile
 	struct sass_file_context *context = sass_new_file_context();
 	context->options = options;
 	context->input_path = input_path;
+	if (outfile && (context->options.source_comments == SASS_SOURCE_COMMENTS_MAP)){
+		context->source_map_file = map_file_name;
+	}
 
 	sass_compile_file(context);
 
 	ret = output(context->error_status, context->error_message, context->output_string, outfile);
+	if (outfile && (context->options.source_comments == SASS_SOURCE_COMMENTS_MAP)){
+		ret = output(context->error_status, context->error_message, context->source_map_string, context->source_map_file);
+	}
+
+
 
 	sass_free_file_context(context);
+	g_free(map_file_name);
 
 	// if (verbose) {
 	// 	g_print("Done.\n");

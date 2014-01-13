@@ -111,7 +111,9 @@ gint compile_file(struct sass_options options, gchar* input_path, gchar* outfile
 
 
 	sass_free_file_context(context);
-	g_free(map_file_name);
+
+	/* FIXME: Freeing caused SEGFAULT! Commented oud as workaround. Find out the real bug. */
+//	g_free(map_file_name);
 
 	// if (verbose) {
 	// 	g_print("Done.\n");

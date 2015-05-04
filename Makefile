@@ -1,5 +1,4 @@
 SASS_LIBSASS_PATH = ./libsass/
-
 CC = gcc
 CFLAGS = -Wall `pkg-config --cflags glib-2.0 gio-2.0 libsass`
 LDFLAGS = 

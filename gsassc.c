@@ -27,6 +27,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <sass_context.h>
 
+#define GSASSC_VERSION "0.2"
+
 /* Default options */
 static gchar *outfile = NULL;
 static gchar *style = "nested";
@@ -118,7 +120,7 @@ gint main (gint argc, gchar **argv) {
 	}
 
 	if (show_version) {
-		puts ("gsassc version: 0.1");
+		g_print ("gsassc version: %s\n", GSASSC_VERSION);
 		return 0;
 	}
 
@@ -212,8 +214,8 @@ gint main (gint argc, gchar **argv) {
 			sass_option_set_output_style (sass_options, SASS_STYLE_EXPANDED);
 		}
 		else {
-			g_print ("Illegal output style: %s\n", style);
-			exit(1);
+			g_error ("Illegal output style: %s\n", style);
+			return -1;
 		}
 
 		sass_option_set_source_comments (sass_options, line_numbers);
@@ -246,7 +248,6 @@ gint main (gint argc, gchar **argv) {
 
 		// WEIRD: g_free'ing input will cause a »double freed« runtime error..?!?
 		// g_free(input);
-
 	}
 	else if (retval == 0){
 		g_print ("No input data.\n");

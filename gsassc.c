@@ -25,7 +25,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <glib.h>
 #include <gio/gio.h>
 
-#include <sass_context.h>
+/* #include <sass_context.h> */
+#include <sass.h>
 
 #define GSASSC_VERSION "0.2"
 

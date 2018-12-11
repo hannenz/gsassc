@@ -201,7 +201,7 @@ gint main (gint argc, gchar **argv) {
 
 		sass_option_set_input_path (sass_options, input_path);
 
-		
+
 		if (!g_strcmp0 (style, "compressed")) {
 			sass_option_set_output_style (sass_options, SASS_STYLE_COMPRESSED);
 		}
@@ -219,6 +219,9 @@ gint main (gint argc, gchar **argv) {
 			return -1;
 		}
 
+		if (include_paths != NULL) {
+			sass_option_set_include_path(sass_options, include_paths);
+		}
 		sass_option_set_source_comments (sass_options, line_numbers);
 
 		if (source_map) {

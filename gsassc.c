@@ -28,7 +28,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /* #include <sass_context.h> */
 #include <sass.h>
 
-#define GSASSC_VERSION "0.2"
+#define GSASSC_VERSION "0.2.1"
 
 /* Default options */
 static gchar *outfile = NULL;
@@ -235,7 +235,7 @@ gint main (gint argc, gchar **argv) {
 			if (outfile != NULL) {
 				error = NULL;
 				if (!g_file_set_contents (outfile, css, -1, &error)) {
-					g_error ("Feild to write file: %s: %s\n", outfile, error->message);
+					g_error ("Failed to write file: %s: %s\n", outfile, error->message);
 					g_error_free (error);
 					return -1;
 				}

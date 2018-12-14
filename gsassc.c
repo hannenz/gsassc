@@ -225,7 +225,14 @@ gint main (gint argc, gchar **argv) {
 		sass_option_set_source_comments (sass_options, line_numbers);
 
 		if (source_map) {
-		 	sass_option_set_source_map_file (sass_options, input_path);
+			if (outfile != NULL) {
+				gchar *source_map_file = g_strconcat(outfile, ".map", NULL);
+				sass_option_set_source_map_file(sass_options, source_map_file);
+				/* g_message("Writing source map to %s", source_map_file); */
+			}
+			else {
+				sass_option_set_source_map_embed(sass_options, true);
+			}
 		}
 
 		int status = sass_compile_data_context (data_ctx);
@@ -238,6 +245,16 @@ gint main (gint argc, gchar **argv) {
 					g_error ("Failed to write file: %s: %s\n", outfile, error->message);
 					g_error_free (error);
 					return -1;
+				}
+
+				const gchar *source_map_file = sass_option_get_source_map_file(sass_options);
+				if (source_map && source_map_file) {
+					const gchar * source_map_string = sass_context_get_source_map_string(ctx);
+					if (!g_file_set_contents(source_map_file, source_map_string, -1, &error)) {
+						g_error ("Failed to write file: %s: %s\n", outfile, error->message);
+						g_error_free (error);
+						return -1;
+					}
 				}
 			}
 			else {

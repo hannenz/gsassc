@@ -28,7 +28,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /* #include <sass_context.h> */
 #include <sass.h>
 
-#define GSASSC_VERSION "0.2.1"
+#define GSASSC_VERSION "0.2.2"
+
+#if defined __clang__
+#pragma clang diagnostic ignored "-Wconstant-logical-operand"
+#endif
 
 /* Default options */
 static gchar *outfile = NULL;
@@ -152,8 +156,6 @@ gint main (gint argc, gchar **argv) {
 			infile = g_file_new_for_commandline_arg (argv[1]);
 			input_path = g_file_get_path (infile);
 
-			g_print ("input_path = %s\n", input_path);
-
 			// TODO: Proper error handling..!
 			error = NULL;
 			if (!g_file_load_contents (infile, NULL, &input, &len, NULL, &error)) {
@@ -228,7 +230,6 @@ gint main (gint argc, gchar **argv) {
 			if (outfile != NULL) {
 				gchar *source_map_file = g_strconcat(outfile, ".map", NULL);
 				sass_option_set_source_map_file(sass_options, source_map_file);
-				/* g_message("Writing source map to %s", source_map_file); */
 			}
 			else {
 				sass_option_set_source_map_embed(sass_options, true);
@@ -250,6 +251,7 @@ gint main (gint argc, gchar **argv) {
 				const gchar *source_map_file = sass_option_get_source_map_file(sass_options);
 				if (source_map && source_map_file) {
 					const gchar * source_map_string = sass_context_get_source_map_string(ctx);
+					g_debug("Writing source map to %s", source_map_file);
 					if (!g_file_set_contents(source_map_file, source_map_string, -1, &error)) {
 						g_error ("Failed to write file: %s: %s\n", outfile, error->message);
 						g_error_free (error);
